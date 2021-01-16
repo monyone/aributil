@@ -595,10 +595,9 @@ class Renderer:
               self.pos[1] - height + y + 1 + self.svs / 2),  fill=self.fg)
     else:
       if self.orn:
-        fontImageDraw.text((self.shs / 2 - 2, self.svs / 2 + 0), character, font=drawFont, fill=self.orn)
-        fontImageDraw.text((self.shs / 2 + 2, self.svs / 2 + 0), character, font=drawFont, fill=self.orn)
-        fontImageDraw.text((self.shs / 2 + 0, self.svs / 2 - 2), character, font=drawFont, fill=self.orn)
-        fontImageDraw.text((self.shs / 2 + 0, self.svs / 2 + 2), character, font=drawFont, fill=self.orn)
+        for dy in range(-1, 2):
+          for dx in range(-1, 2):
+            fontImageDraw.text((self.shs / 2 + 2 * dx, self.svs / 2 + 2 * dy), character, font=drawFont, fill=self.orn)
       fontImageDraw.text((self.shs / 2, self.svs / 2), character, font=drawFont, fill=self.fg)
       self.fgImage.alpha_composite(fontImage.resize((width, height)), (self.pos[0], self.pos[1] - height))
 
@@ -616,7 +615,6 @@ class Renderer:
 
     bgDraw = ImageDraw.Draw(self.bgImage)
     bgDraw.rectangle((self.pos[0], self.pos[1] - height, self.pos[0] + width, self.pos[1]), fill=self.bg)
-
 
     self.move_relative_pos(1, 0)
 
