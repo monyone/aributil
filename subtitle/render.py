@@ -187,7 +187,8 @@ class Renderer:
           depth = self.pes[begin + 1]
           width = self.pes[begin + 2]
           height = self.pes[begin + 3]
-          length = (width * height * (1 if depth == 0 else 2)) // 8 # FIXME: depth = 階調数 - 2 なので対応する
+          depth_bits = len(bin(depth + 2)) - len(bin(depth + 2).rstrip('0'))
+          length = (width * height * depth_bits) // 8 # FIXME: depth = 階調数 - 2 なので対応する
           if size == 1:
             self.G_OTHER[0x40 + index][ch] = self.pes[begin + 4: begin + 4 + length]
             begin += 4 + length
@@ -582,12 +583,17 @@ class Renderer:
       self.GR = 2
       return
     elif type(character) == bytearray: # DRCS
+      depth = len(character) * 8 // (self.ssm[0] * self.ssm[1])
       fgImageDraw = ImageDraw.Draw(self.fgImage)
       for y in range(self.ssm[1]):
         for x in range(self.ssm[0]):
-          byte = (2 * y * self.ssm[0] + 2 * x) // 8 # FIXME: 階調数4で固定してるから直す
-          index = 7 - ((2 * y * self.ssm[0] + 2 * x) % 8)
-          if (character[byte] >> index) & 0x03 != 0:
+          value = 0
+          for d in range(depth):
+            byte = (((y * self.ssm[0] + x) * depth) + d) // 8
+            index = 7 - ((((y * self.ssm[0] + x) * depth) + d) % 8)
+            value *= 2
+            value += (character[byte] & (1 << index)) >> index
+          if value != 0:
             fgImageDraw.rectangle((
               self.pos[0] + x + 0 + self.shs / 2,
               self.pos[1] - height + y + 0 + self.svs / 2,
