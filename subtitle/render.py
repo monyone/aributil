@@ -26,13 +26,14 @@ class Renderer:
       G_SET.MOSAIC_C: None, # MOSAIC C
       G_SET.MOSAIC_D: None, # MOSAIC D
       # 実運用では出ないと規定されている
-      G_SET.P_ALNUM: None, # P ALNUM (TODO: TR で使われないと規定されてる)
-      G_SET.P_HIRAGANA: None, # P HIRAGANA (TODO: TR で使われないと規定されてる)
-      G_SET.P_KATAKANA: None, # P KATAKANA (TODO: TR で使われないと規定されてる)
+      G_SET.P_ALNUM: None, # P ALNUM (TODO: TR で使われないと規定されてるのでページ数を書く)
+      G_SET.P_HIRAGANA: None, # P HIRAGANA (TODO: TR で使われないと規定されてるのでページ数を書く)
+      G_SET.P_KATAKANA: None, # P KATAKANA (TODO: TR で使われないと規定されてるのでページ数を書く)
       # エラーが出たら対応する
-      G_SET.JISX0201_KATAKANA: None, # JIS X0201 KATAKANA
-      G_SET.JIS_KANJI_1: None, # JIS 1 KANJI
-      G_SET.JIS_KANJI_2: None, # JIS 2 KANJI
+      G_SET.JIS_X0201_KATAKANA: None, # JIS X0201 KATAKANA
+      # ARIB TR-B14 第6.0版 第1分冊 p.89 で運用しないとされている
+      G_SET.JIS_X0213_2004_KANJI_1: None, # JIS 1 KANJI
+      G_SET.JIS_X0213_2004_KANJI_2: None, # JIS 2 KANJI
       G_SET.ADDITIONAL_SYMBOLS: None, # ADDITIONAL SYMBOLS
     }
     self.G_OTHER = {
@@ -202,11 +203,13 @@ class Renderer:
     while begin < end:
       byte = self.pes[begin]
       if 0x20 < byte and byte < 0x7F:
-        self.render_character(begin, self.G_BACK[self.GL])
-        begin += self.G_BACK[self.GL].size
+        size = self.G_BACK[self.GL].size
+        self.render_character(self.pes[begin:begin+size], self.G_BACK[self.GL])
+        begin += size
       elif 0xA0 < byte and byte < 0xFF:
-        self.render_character(begin, self.G_BACK[self.GR])
-        begin += self.G_BACK[self.GR].size
+        size = self.G_BACK[self.GR].size
+        self.render_character(self.pes[begin:begin+size], self.G_BACK[self.GR])
+        begin += size
       elif byte == JIS8.NUL:
         begin += 1 # (TODO: ignore したことをログに残す)
       elif byte == JIS8.BEL:
@@ -241,8 +244,9 @@ class Renderer:
       elif byte == JIS8.CAN:
         begin += 1 # (TODO: ignore したことをログに残す)
       elif byte == JIS8.SS2:
-        self.render_character(begin + 1, self.G_BACK[2])
-        begin += 1 + self.G_BACK[2].size
+        size = self.G_BACK[2].size
+        self.render_character(self.pes[begin + 1: begin + 1 + size], self.G_BACK[2])
+        begin += 1 + size
       elif byte == JIS8.ESC:
         if self.pes[begin + 1] == ESC.LS2: ## LS2
           self.GL = 2 #GL = G2
@@ -324,8 +328,10 @@ class Renderer:
         self.move_absolute_pos(P2, P1)
         begin += 3
       elif byte == JIS8.SS3:
-        self.render_character(begin + 1, self.G_BACK[3])
-        begin += 1 + self.G_BACK[3].size
+        size = self.G_BACK[3].size
+        print(hex(self.pes[begin + 1]))
+        self.render_character(self.pes[begin + 1: begin + 1 + size], self.G_BACK[3])
+        begin += 1 + size
       elif byte == JIS8.RS:
         begin += 1 # (TODO: ignore したことをログに残す)
       elif byte == JIS8.US:
@@ -558,7 +564,7 @@ class Renderer:
       else:
         raise NotImplementedYetError(hex(byte))
 
-  def render_character(self, index, dict):
+  def render_character(self, ch_byte, dict):
     if not self.pos: self.move_absolute_pos(0, 0)
     width, height = self.kukaku()
     self.prepareImage()
@@ -567,116 +573,49 @@ class Renderer:
     fontImageDraw = ImageDraw.Draw(fontImage)
     drawFont = ImageFont.truetype('wlcmaru2004aribu.ttf', self.ssm[0])
 
-    if dict.size == 2:
-      first = self.pes[index + 0] & 0x7F
-      second = self.pes[index + 1] & 0x7F
-      character = dict[(first, second)]
+    character_key = int.from_bytes(ch_byte, byteorder='big') & int.from_bytes(b'\x7F' * dict.size, byteorder='big')
+    character = dict[character_key]
 
-      if type(character) == tuple: # MACRO
-        self.G_BACK = [(self.G_TEXT[dictionary] if dictionary in G_SET else self.G_OTHER[dictionary]) for dictionary in character]
-        self.GL = 0
-        self.GR = 2
-      elif type(character) == bytearray: # DRCS
-        fgImageDraw = ImageDraw.Draw(self.fgImage)
-        for y in range(self.ssm[1]):
-          for x in range(self.ssm[0]):
-            byte = (2 * y * self.ssm[0] + 2 * x) // 8 # FIXME: 階調数4で固定してるから直す
-            index = 7 - ((2 * y * self.ssm[0] + 2 * x) % 8)
-            if (character[byte] >> index) & 0x03 != 0:
-              fgImageDraw.rectangle((
-                self.pos[0] + x + 0 + self.shs / 2,
-                self.pos[1] - height + y + 0 + self.svs / 2,
-                self.pos[0] + x + 1 + self.shs / 2,
-                self.pos[1] - height + y + 1 + self.svs / 2),  fill=self.fg)
-
-        fgImageDraw = ImageDraw.Draw(self.fgImage)
-        if self.hlc & 0b0001 != 0:
-          fgImageDraw.rectangle((self.pos[0], self.pos[1] - height // 24, self.pos[0] + width, self.pos[1]), fill=self.fg)
-        if self.hlc & 0b0010 != 0:
-          fgImageDraw.rectangle((self.pos[0] + width - height // 24, self.pos[1] - height, self.pos[0] + width, self.pos[1]), fill=self.fg)
-        if self.hlc & 0b0100 != 0:
-          fgImageDraw.rectangle((self.pos[0], self.pos[1] - height, self.pos[0] + width, self.pos[1] - height + height // 24), fill=self.fg)
-        if self.hlc & 0b1000 != 0:
-          fgImageDraw.rectangle((self.pos[0], self.pos[1] - height, self.pos[0] + height // 24, self.pos[1]), fill=self.fg)
-        if self.stl:
-          fgImageDraw.rectangle((self.pos[0], self.pos[1] - height // 24, self.pos[0] + width, self.pos[1]), fill=self.fg)
-      else:
-        if self.orn:
-          fontImageDraw.text((self.shs / 2 - 2, self.svs / 2 + 0), character, font=drawFont, fill=self.orn)
-          fontImageDraw.text((self.shs / 2 + 2, self.svs / 2 + 0), character, font=drawFont, fill=self.orn)
-          fontImageDraw.text((self.shs / 2 + 0, self.svs / 2 - 2), character, font=drawFont, fill=self.orn)
-          fontImageDraw.text((self.shs / 2 + 0, self.svs / 2 + 2), character, font=drawFont, fill=self.orn)
-        fontImageDraw.text((self.shs / 2, self.svs / 2), character, font=drawFont, fill=self.fg)
-        self.fgImage.paste(fontImage.resize((width, height)), (self.pos[0], self.pos[1] - height))
-
-        fgImageDraw = ImageDraw.Draw(self.fgImage)
-        if self.hlc & 0b0001 != 0:
-          fgImageDraw.rectangle((self.pos[0], self.pos[1] - height // 24, self.pos[0] + width, self.pos[1]), fill=self.fg)
-        if self.hlc & 0b0010 != 0:
-          fgImageDraw.rectangle((self.pos[0] + width - height // 24, self.pos[1] - height, self.pos[0] + width, self.pos[1]), fill=self.fg)
-        if self.hlc & 0b0100 != 0:
-          fgImageDraw.rectangle((self.pos[0], self.pos[1] - height, self.pos[0] + width, self.pos[1] - height + height // 24), fill=self.fg)
-        if self.hlc & 0b1000 != 0:
-          fgImageDraw.rectangle((self.pos[0], self.pos[1] - height, self.pos[0] + height // 24, self.pos[1]), fill=self.fg)
-        if self.stl:
-          fgImageDraw.rectangle((self.pos[0], self.pos[1] - height // 24, self.pos[0] + width, self.pos[1]), fill=self.fg)
+    if type(character) == tuple: # MACRO
+      self.G_BACK = [(self.G_TEXT[dictionary] if dictionary in G_SET else self.G_OTHER[dictionary]) for dictionary in character]
+      self.GL = 0
+      self.GR = 2
+      return
+    elif type(character) == bytearray: # DRCS
+      fgImageDraw = ImageDraw.Draw(self.fgImage)
+      for y in range(self.ssm[1]):
+        for x in range(self.ssm[0]):
+          byte = (2 * y * self.ssm[0] + 2 * x) // 8 # FIXME: 階調数4で固定してるから直す
+          index = 7 - ((2 * y * self.ssm[0] + 2 * x) % 8)
+          if (character[byte] >> index) & 0x03 != 0:
+            fgImageDraw.rectangle((
+              self.pos[0] + x + 0 + self.shs / 2,
+              self.pos[1] - height + y + 0 + self.svs / 2,
+              self.pos[0] + x + 1 + self.shs / 2,
+              self.pos[1] - height + y + 1 + self.svs / 2),  fill=self.fg)
     else:
-      byte = self.pes[index + 0] & 0x7F
-      character = dict[byte]
-      if type(character) == tuple: # MACRO
-        self.G_BACK = [(self.G_TEXT[dictionary] if dictionary in G_SET else self.G_OTHER[dictionary]) for dictionary in character]
-        self.GL = 0
-        self.GR = 2
-      elif type(character) == bytearray: # DRCS
-        fgImageDraw = ImageDraw.Draw(self.fgImage)
-        for y in range(self.ssm[1]):
-          for x in range(self.ssm[0]):
-            byte = (2 * y * self.ssm[0] + 2 * x) // 8
-            index = 7 - ((2 * y * self.ssm[0] + 2 * x) % 8) # FIXME: 階調数4で固定してるから直す
-            if (character[byte] >> index) & 0x03 != 0:
-              fgImageDraw.rectangle((
-                self.pos[0] + x + 0 + self.shs / 2,
-                self.pos[1] - height + y + 0 + self.svs / 2,
-                self.pos[0] + x + 1 + self.shs / 2,
-                self.pos[1] - height + y + 1 + self.svs / 2),  fill=self.fg)
+      if self.orn:
+        fontImageDraw.text((self.shs / 2 - 2, self.svs / 2 + 0), character, font=drawFont, fill=self.orn)
+        fontImageDraw.text((self.shs / 2 + 2, self.svs / 2 + 0), character, font=drawFont, fill=self.orn)
+        fontImageDraw.text((self.shs / 2 + 0, self.svs / 2 - 2), character, font=drawFont, fill=self.orn)
+        fontImageDraw.text((self.shs / 2 + 0, self.svs / 2 + 2), character, font=drawFont, fill=self.orn)
+      fontImageDraw.text((self.shs / 2, self.svs / 2), character, font=drawFont, fill=self.fg)
+      self.fgImage.paste(fontImage.resize((width, height)), (self.pos[0], self.pos[1] - height))
 
-        fgImageDraw = ImageDraw.Draw(self.fgImage)
-        if self.hlc & 0b0001 != 0:
-          fgImageDraw.rectangle((self.pos[0], self.pos[1] - height // 24, self.pos[0] + width, self.pos[1]), fill=self.fg)
-        if self.hlc & 0b0010 != 0:
-          fgImageDraw.rectangle((self.pos[0] + width - height // 24, self.pos[1] - height, self.pos[0] + width, self.pos[1]), fill=self.fg)
-        if self.hlc & 0b0100 != 0:
-          fgImageDraw.rectangle((self.pos[0], self.pos[1] - height, self.pos[0] + width, self.pos[1] - height + height // 24), fill=self.fg)
-        if self.hlc & 0b1000 != 0:
-          fgImageDraw.rectangle((self.pos[0], self.pos[1] - height, self.pos[0] + height // 24, self.pos[1]), fill=self.fg)
-        if self.stl:
-          fgImageDraw.rectangle((self.pos[0], self.pos[1] - height // 24, self.pos[0] + width, self.pos[1]), fill=self.fg)
-      else:
-        if self.orn:
-          fontImageDraw.text((self.shs / 2 - 2, self.svs / 2 + 0), character, font=drawFont, fill=self.orn)
-          fontImageDraw.text((self.shs / 2 + 2, self.svs / 2 + 0), character, font=drawFont, fill=self.orn)
-          fontImageDraw.text((self.shs / 2 + 0, self.svs / 2 - 2), character, font=drawFont, fill=self.orn)
-          fontImageDraw.text((self.shs / 2 + 0, self.svs / 2 + 2), character, font=drawFont, fill=self.orn)
-        fontImageDraw.text((self.shs / 2, self.svs / 2), character, font=drawFont, fill=self.fg)
-        self.fgImage.paste(fontImage.resize((width, height)), (self.pos[0], self.pos[1] - height))
-
-        fgImageDraw = ImageDraw.Draw(self.fgImage)
-        if self.hlc & 0b0001 != 0:
-          fgImageDraw.rectangle((self.pos[0], self.pos[1] - height // 24, self.pos[0] + width, self.pos[1]), fill=self.fg)
-        if self.hlc & 0b0010 != 0:
-          fgImageDraw.rectangle((self.pos[0] + width - height // 24, self.pos[1] - height, self.pos[0] + width, self.pos[1]), fill=self.fg)
-        if self.hlc & 0b0100 != 0:
-          fgImageDraw.rectangle((self.pos[0], self.pos[1] - height, self.pos[0] + width, self.pos[1] - height + height // 24), fill=self.fg)
-        if self.hlc & 0b1000 != 0:
-          fgImageDraw.rectangle((self.pos[0], self.pos[1] - height, self.pos[0] + height // 24, self.pos[1]), fill=self.fg)
-        if self.stl:
-          fgImageDraw.rectangle((self.pos[0], self.pos[1] - height // 24, self.pos[0] + width, self.pos[1]), fill=self.fg)
-
+    fgImageDraw = ImageDraw.Draw(self.fgImage)
+    if self.hlc & 0b0001 != 0:
+      fgImageDraw.rectangle((self.pos[0], self.pos[1] - height // 24, self.pos[0] + width, self.pos[1]), fill=self.fg)
+    if self.hlc & 0b0010 != 0:
+      fgImageDraw.rectangle((self.pos[0] + width - height // 24, self.pos[1] - height, self.pos[0] + width, self.pos[1]), fill=self.fg)
+    if self.hlc & 0b0100 != 0:
+      fgImageDraw.rectangle((self.pos[0], self.pos[1] - height, self.pos[0] + width, self.pos[1] - height + height // 24), fill=self.fg)
+    if self.hlc & 0b1000 != 0:
+      fgImageDraw.rectangle((self.pos[0], self.pos[1] - height, self.pos[0] + height // 24, self.pos[1]), fill=self.fg)
+    if self.stl:
+      fgImageDraw.rectangle((self.pos[0], self.pos[1] - height // 24, self.pos[0] + width, self.pos[1]), fill=self.fg)
 
     bgDraw = ImageDraw.Draw(self.bgImage)
     bgDraw.rectangle((self.pos[0], self.pos[1] - height, self.pos[0] + width, self.pos[1]), fill=self.bg)
-    #elif self.hlc & 0b1000 != 0:
-    #  bgDraw.rectangle((self.pos[0], self.pos[1], self.pos[0] + height // 24, self.pos[1] + height), fill=self.fg)
 
 
     self.move_relative_pos(1, 0)
