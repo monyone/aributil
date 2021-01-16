@@ -600,7 +600,7 @@ class Renderer:
         fontImageDraw.text((self.shs / 2 + 0, self.svs / 2 - 2), character, font=drawFont, fill=self.orn)
         fontImageDraw.text((self.shs / 2 + 0, self.svs / 2 + 2), character, font=drawFont, fill=self.orn)
       fontImageDraw.text((self.shs / 2, self.svs / 2), character, font=drawFont, fill=self.fg)
-      self.fgImage.paste(fontImage.resize((width, height)), (self.pos[0], self.pos[1] - height))
+      self.fgImage.alpha_composite(fontImage.resize((width, height)), (self.pos[0], self.pos[1] - height))
 
     fgImageDraw = ImageDraw.Draw(self.fgImage)
     if self.hlc & 0b0001 != 0:
