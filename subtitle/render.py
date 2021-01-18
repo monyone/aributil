@@ -330,7 +330,6 @@ class Renderer:
         begin += 3
       elif byte == JIS8.SS3:
         size = self.G_BACK[3].size
-        print(hex(self.pes[begin + 1]))
         self.render_character(self.pes[begin + 1: begin + 1 + size], self.G_BACK[3])
         begin += 1 + size
       elif byte == JIS8.RS:
