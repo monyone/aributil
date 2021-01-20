@@ -337,7 +337,8 @@ class Renderer:
       elif byte == JIS8.US:
         begin += 1 # (TODO: ignore したことをログに残す)
       elif byte == JIS8.SP:
-        begin += 1 # (TODO: ignore したことをログに残す)
+        self.render_character(b'\xa1\xa1', self.G_TEXT[G_SET.KANJI]) # 全角スペース
+        begin += 1
       elif byte == JIS8.DEL:
         begin += 1 # (TODO: ignore したことをログに残す)
       elif byte == JIS8.BKF:
@@ -624,4 +625,3 @@ class Renderer:
 
     self.move_relative_pos(1, 0)
 
-v
