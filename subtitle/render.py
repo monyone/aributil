@@ -153,7 +153,7 @@ class Renderer:
     while x > 0:
       x -= 1
       self.pos = (self.pos[0] + width, self.pos[1])
-      if self.pos[0] + width > self.sdf[0] + self.sdf[0]:
+      if self.pos[0] >= self.sdp[0] + self.sdf[0]:
         self.pos = (self.sdp[0], self.pos[1])
         y += 1
     while y < 0:
