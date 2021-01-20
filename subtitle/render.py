@@ -582,22 +582,23 @@ class Renderer:
       self.GR = 2
       return
     elif type(character) == bytearray: # DRCS
-      depth = len(character) * 8 // (self.ssm[0] * self.ssm[1])
+      drcs = (int(self.ssm[0] * self.text_size[0]), int(self.ssm[1] * self.text_size[1]))
+      depth = len(character) * 8 // (drcs[0] * drcs[1])
       fgImageDraw = ImageDraw.Draw(self.fgImage)
-      for y in range(self.ssm[1]):
-        for x in range(self.ssm[0]):
+      for y in range(drcs[1]):
+        for x in range(drcs[0]):
           value = 0
           for d in range(depth):
-            byte = (((y * self.ssm[0] + x) * depth) + d) // 8
-            index = 7 - ((((y * self.ssm[0] + x) * depth) + d) % 8)
+            byte = (((y * drcs[0] + x) * depth) + d) // 8
+            index = 7 - ((((y * drcs[0] + x) * depth) + d) % 8)
             value *= 2
             value += (character[byte] & (1 << index)) >> index
           if value != 0:
             fgImageDraw.rectangle((
-              self.pos[0] + x + 0 + self.shs / 2,
-              self.pos[1] - height + y + 0 + self.svs / 2,
-              self.pos[0] + x + 1 + self.shs / 2,
-              self.pos[1] - height + y + 1 + self.svs / 2),  fill=self.fg)
+              self.pos[0] -      0 + x + 0 + (int(self.shs * self.text_size[0]) // 2),
+              self.pos[1] - height + y + 0 + (int(self.svs * self.text_size[1]) // 2),
+              self.pos[0] -      0 + x + 1 + (int(self.shs * self.text_size[0]) // 2),
+              self.pos[1] - height + y + 1 + (int(self.svs * self.text_size[1]) // 2)),  fill=self.fg)
     else:
       if self.orn:
         for dy in range(-1, 2):
