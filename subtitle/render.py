@@ -603,8 +603,8 @@ class Renderer:
       if self.orn:
         for dy in range(-1, 2):
           for dx in range(-1, 2):
-            fontImageDraw.text((self.shs / 2 + 2 * dx, self.svs / 2 + 2 * dy), character, font=drawFont, fill=self.orn)
-      fontImageDraw.text((self.shs / 2, self.svs / 2), character, font=drawFont, fill=self.fg)
+            fontImageDraw.text((self.shs // 2 + 2 * dx, self.svs // 2 + 2 * dy), character, font=drawFont, fill=self.orn)
+      fontImageDraw.text((self.shs // 2, self.svs // 2), character, font=drawFont, fill=self.fg)
       self.fgImage.alpha_composite(fontImage.resize((width, height)), (self.pos[0], self.pos[1] - height))
 
     fgImageDraw = ImageDraw.Draw(self.fgImage)
@@ -624,3 +624,4 @@ class Renderer:
 
     self.move_relative_pos(1, 0)
 
+v
