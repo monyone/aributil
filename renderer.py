@@ -4,6 +4,7 @@ import argparse
 import sys
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 from datetime import datetime, timedelta
 
@@ -20,11 +21,11 @@ if __name__ == "__main__":
 
   parser.add_argument('-i', '--input', type=argparse.FileType('rb'), nargs='?', default=sys.stdin.buffer)
   parser.add_argument('-o', '--output_path', type=Path, nargs='?', default=Path(os.getcwd()))
-  # parser.add_argument('-o', '--output', type=str, nargs='?', default=".")
   parser.add_argument('-s', '--SID', type=int, nargs='?')
-  parser.add_argument('-f', '--ffmpeg', action='store_true')
-  #parser.add_argument('-p', '--PES', action='store_true', help='テスト用')
-  # parser.add_argument('-v', '--verbose', dest='v', action='store_true')
+  parser.add_argument('--suffix', type=str, default='png')
+  parser.add_argument('--format', type=str, default='{:d}')
+  parser.add_argument('--TOT', action='store_true')
+  parser.add_argument('--ffmpeg', action='store_true')
 
   args = parser.parse_args()
   os.makedirs(args.output_path, exist_ok=True)
@@ -39,7 +40,10 @@ if __name__ == "__main__":
   SUBTITLE_PID = -1
 
   FIRST_PCR = None
+  RENDER_COUNT = 0
+
   FIRST_TOT = None
+  FIRST_TOT_PCR = None
 
   while args.input:
     while True:
@@ -92,15 +96,17 @@ if __name__ == "__main__":
 
           begin += 5 + ES_info_length
     elif ts.pid() == PCR_PID:
-      if not FIRST_TOT:
+      if not FIRST_PCR:
         FIRST_PCR = ts.pcr()
-    elif ts.pid() == 0x14:
+      if args.TOT and not FIRST_TOT:
+        FIRST_TOT_PCR = ts.pcr()
+    elif args.TOT and ts.pid() == 0x14:
       TOT_Parser.push(ts)
       while not TOT_Parser.empty():
         TOT = TOT_Parser.pop()
         if TOT.CRC32() != 0: continue
         if FIRST_TOT: continue
-        if not FIRST_PCR: continue
+        if not FIRST_TOT_PCR: continue
 
         MJD = (TOT[3 + 0] << 8) + TOT[3 + 1]
         year, month, day = MJD_to_YMD(MJD)
@@ -114,7 +120,7 @@ if __name__ == "__main__":
       SUBTITLE_Parser.push(ts)
       while not SUBTITLE_Parser.empty():
         SUBTITLE = SUBTITLE_Parser.pop()
-        if not FIRST_TOT: continue
+        if args.TOT and not FIRST_TOT: continue
 
         renderer = Renderer(SUBTITLE)
         renderer.render()
@@ -123,13 +129,19 @@ if __name__ == "__main__":
           image.alpha_composite(renderer.bgImage)
           image.alpha_composite(renderer.fgImage)
 
-          elapsed_seconds = timedelta(seconds = (((1 << 33) - 1) + (renderer.PTS() - FIRST_PCR)) % ((1 << 33) - 1) / 90000)
-          renderer_time = FIRST_TOT + elapsed_seconds
+          elapsed_seconds = timedelta(seconds = (((1 << 33) + (renderer.PTS() - FIRST_PCR)) % (1 << 33)) / 90000)
 
-          renderer_time_str = renderer_time.strftime('%Y%m%d%H%M%S%f')
-          output_path = args.output_path.joinpath('{}.png'.format(renderer_time_str))
+          if args.TOT:
+            elapsed_TOT_seconds = timedelta(seconds = (((1 << 33) + (renderer.PTS() - FIRST_TOT_PCR)) % (1 << 33)) / 90000)
+            renderer_time = FIRST_TOT + elapsed_TOT_seconds
+            renderer_time_str = renderer_time.strftime('%Y%m%d%H%M%S%f')
+            output_path = args.output_path.joinpath('{}.{}'.format(renderer_time_str, args.suffix))
+          else:
+            output_path = args.output_path.joinpath('{}.{}'.format(args.format.format(RENDER_COUNT), args.suffix))
+            RENDER_COUNT += 1
+
           if args.ffmpeg:
-            output_ffmpeg_path = args.output_path.joinpath('{}-ffmpeg.png'.format(renderer_time_str))
+            output_ffmpeg_path = args.output_path.joinpath('{}-ffmpeg.{}'.format(args.format.format(RENDER_COUNT), args.suffix))
             ffmpeg = subprocess.Popen([
              'ffmpeg',
              '-ss', str(elapsed_seconds.total_seconds()),
