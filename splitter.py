@@ -62,7 +62,7 @@ if __name__ == "__main__":
           header  = ts[0].to_bytes(1, byteorder="big")
           header += ((ts[1] & 0xBF) | ((1 if begin == 0 else 0) << 6)).to_bytes(1, byteorder="big")
           header += ts[2].to_bytes(1, byteorder="big")
-          header += ((ts[3] & 0xF0) | (PAT_Continuity_Counter & 0x0F)).to_bytes(1, byteorder="big")
+          header += ((ts[3] & 0xD0) | (PAT_Continuity_Counter & 0x0F)).to_bytes(1, byteorder="big")
           PAT_Continuity_Counter += 1
           PAT_Continuity_Counter &= 0x0F;
 
