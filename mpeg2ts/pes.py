@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import math
+
 class PES:
   HEADER_SIZE = 6
 
@@ -29,7 +31,13 @@ class PES:
     return (self.payload[4] << 8) | self.payload[5]
 
   def remains(self):
-    return max(0, (PES.HEADER_SIZE + self.PES_packet_length()) - len(self.payload))
+    if self.PES_packet_length() == 0:
+      return math.inf
+    else:
+      return max(0, (PES.HEADER_SIZE + self.PES_packet_length()) - len(self.payload))
 
   def fulfilled(self):
-    return len(self.payload) >= PES.HEADER_SIZE + self.PES_packet_length()
+    if self.PES_packet_length() == 0:
+      return false
+    else:
+      return len(self.payload) >= PES.HEADER_SIZE + self.PES_packet_length()

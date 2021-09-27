@@ -53,5 +53,5 @@ class Packet:
     pcr_base = (pcr_base << 8) | ((self.packet[Packet.HEADER_SIZE + 1 + 2] & 0xFF) >> 0)
     pcr_base = (pcr_base << 8) | ((self.packet[Packet.HEADER_SIZE + 1 + 3] & 0xFF) >> 0)
     pcr_base = (pcr_base << 8) | ((self.packet[Packet.HEADER_SIZE + 1 + 4] & 0xFF) >> 0)
-    pcr_base = (pcr_base << 1) | ((self.packet[Packet.HEADER_SIZE + 1 + 5] & 0x10) >> 7)
+    pcr_base = (pcr_base << 1) | ((self.packet[Packet.HEADER_SIZE + 1 + 5] & 0x80) >> 7)
     return pcr_base

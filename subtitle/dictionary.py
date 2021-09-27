@@ -62,7 +62,7 @@ class KANJI(Dictionary):
         GR1 = (ch1 | 0x80).to_bytes(1, byteorder='big')
         GR2 = (ch2 | 0x80).to_bytes(1, byteorder='big')
         try:
-          mapping[key] = (GR1 + GR2).decode('euc_jis_2004')
+          mapping[key] = (GR1 + GR2).decode('euc_jp')
         except:
           mapping[key] = ''
     for ch1 in range(0x75, 0x7F):
